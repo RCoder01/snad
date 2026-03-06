@@ -73,6 +73,8 @@ fn main() {
             let mut encoder = state.state.create_encoder();
             state.state.simulate_step(&mut encoder, input);
             state.state.submit(encoder);
+            drop(state);
+
             let elapsed = last_iter.elapsed();
             if elapsed < delay_interval {
                 std::thread::sleep(delay_interval - elapsed);
