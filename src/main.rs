@@ -26,9 +26,9 @@ struct Uniforms {
 }
 
 impl Uniforms {
-    fn to_bytes(&self) -> encase::internal::Result<Vec<u8>> {
+    fn to_bytes(self) -> encase::internal::Result<Vec<u8>> {
         let mut buffer = encase::UniformBuffer::new(Vec::new());
-        buffer.write(self)?;
+        buffer.write(&self)?;
         Ok(buffer.into_inner())
     }
 }
@@ -404,7 +404,7 @@ impl State {
             compute_pass.set_pipeline(&self.input_pipeline.pipeline);
             compute_pass.set_bind_group(0, self.input_pipeline.bind_group.as_ref().unwrap(), &[]);
             let immediate_data =
-                [input.x, self.size.height as f32 - input.y, input.size].map(|u| u.to_le_bytes());
+                [input.x, self.size.height as f32 - input.y, input.size].map(f32::to_le_bytes);
             compute_pass.set_immediates(0, immediate_data.as_flattened());
             compute_pass.dispatch_workgroups(self.size.width.div_ceil(64), self.size.height, 1);
         }
@@ -427,7 +427,7 @@ impl State {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
+                view: texture_view,
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
@@ -564,7 +564,7 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 println!("Close requested, stopping");
-                event_loop.exit()
+                event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
                 let mut encoder = state.create_encoder();
