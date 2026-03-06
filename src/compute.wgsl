@@ -46,7 +46,11 @@ fn simulate(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     let curr = offset_index_unchecked(x, y, 0, 0); 
+    let down = offset_index(x, y, 0, -1);
     if sim.flag != 0  {
+        if down == u32(-1i) {
+            snad_mut[down] = snad_next[down];
+        }
         snad_mut[curr] = snad_next[curr];
         return;
     }
@@ -54,7 +58,6 @@ fn simulate(@builtin(global_invocation_id) id: vec3<u32>) {
         snad_next[curr] = snad_mut[curr];
         return;
     }
-    let down = offset_index(x, y, 0, -1);
     if down == u32(-1i) {
         snad_next[curr] = snad_mut[curr];
         return;
@@ -111,8 +114,12 @@ fn input(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     let pos = vec2f(f32(id.x), f32(id.y));
-    if distance(pos, imm.coord) < imm.size {
+    if distance(pos, imm.coord) < abs(imm.size) {
         let index = offset_index(id.x, id.y, 0, 0);
-        snad_mut[index] = u32(-1i);
+        if imm.size < 0 {
+            snad_mut[index] = 0;
+        } else {
+            snad_mut[index] = u32(-1i);
+        }
     }
 }

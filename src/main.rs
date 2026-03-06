@@ -3,7 +3,7 @@ use std::{
     borrow::Cow,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicU8, AtomicU64, Ordering},
         mpsc::{Sender, channel},
     },
     time::{Duration, Instant},
@@ -33,7 +33,7 @@ impl Uniforms {
     }
 }
 
-const SIM_RATE: f32 = 100.0;
+const SIM_RATE: f32 = 300.0;
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
@@ -51,13 +51,23 @@ fn main() {
         let mut last_second = last_iter;
         let mut count = 0;
         loop {
-            let input = if state.mouse_pressed.load(Ordering::Relaxed) {
-                let combined = state.mouse_pos.load(Ordering::Relaxed).to_le_bytes();
-                let x = f32::from_le_bytes(array::from_fn(|i| combined[i]));
-                let y = f32::from_le_bytes(array::from_fn(|i| combined[4 + i]));
-                Some(DrawInput { x, y, size: 50. })
-            } else {
-                None
+            let pressed = state.mouse_pressed.load(Ordering::Relaxed);
+            let input = match pressed {
+                0b00 => None,
+                0b01 => {
+                    let combined = state.mouse_pos.load(Ordering::Relaxed).to_le_bytes();
+                    let x = f32::from_le_bytes(array::from_fn(|i| combined[i]));
+                    let y = f32::from_le_bytes(array::from_fn(|i| combined[4 + i]));
+                    Some(DrawInput { x, y, size: 50. })
+                }
+                0b10 => {
+                    let combined = state.mouse_pos.load(Ordering::Relaxed).to_le_bytes();
+                    let x = f32::from_le_bytes(array::from_fn(|i| combined[i]));
+                    let y = f32::from_le_bytes(array::from_fn(|i| combined[4 + i]));
+                    Some(DrawInput { x, y, size: -50. })
+                }
+                0b11 => None,
+                _ => unreachable!(),
             };
             let mut encoder = state.state.create_encoder();
             state.state.simulate_step(&mut encoder, input);
@@ -519,7 +529,7 @@ impl State {
 
 struct UiState {
     state: State,
-    mouse_pressed: AtomicBool,
+    mouse_pressed: AtomicU8,
     mouse_pos: AtomicU64,
 }
 
@@ -539,7 +549,7 @@ impl ApplicationHandler for App {
         let state = pollster::block_on(State::new(Arc::clone(&window)));
         let state = Arc::new(UiState {
             state,
-            mouse_pressed: AtomicBool::new(false),
+            mouse_pressed: AtomicU8::new(0),
             mouse_pos: AtomicU64::new(0),
         });
         self.send_state.send(Arc::clone(&state)).unwrap();
@@ -572,17 +582,19 @@ impl ApplicationHandler for App {
                 self.real_size = size;
                 // state.resize(size);
             }
-            WindowEvent::MouseInput {
-                button: MouseButton::Left,
-                state,
-                ..
-            } => mouse_pressed.store(
-                match state {
-                    ElementState::Pressed => true,
-                    ElementState::Released => false,
-                },
-                Ordering::Relaxed,
-            ),
+            WindowEvent::MouseInput { button, state, .. } => {
+                let curr_val = mouse_pressed.load(Ordering::Relaxed);
+                mouse_pressed.store(
+                    match (button, state) {
+                        (MouseButton::Left, ElementState::Pressed) => curr_val | 0b1,
+                        (MouseButton::Left, ElementState::Released) => curr_val & !0b1,
+                        (MouseButton::Right, ElementState::Pressed) => curr_val | 0b10,
+                        (MouseButton::Right, ElementState::Released) => curr_val & !0b10,
+                        _ => return,
+                    },
+                    Ordering::Relaxed,
+                );
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let pct_x = position.x as f32 / self.real_size.width as f32;
                 let pct_y = position.y as f32 / self.real_size.height as f32;
