@@ -1,0 +1,10 @@
+[package]
+name = "snad"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+encase = "0.12.0"
+pollster = "0.4.0"
+wgpu = "28.0.0"
+winit = "0.30.13"
