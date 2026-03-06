@@ -2,7 +2,7 @@ use std::{
     array,
     borrow::Cow,
     sync::{
-        Arc,
+        Arc, RwLock,
         atomic::{AtomicU8, AtomicU64, Ordering},
         mpsc::{Sender, channel},
     },
@@ -33,7 +33,7 @@ impl Uniforms {
     }
 }
 
-const SIM_RATE: f32 = 300.0;
+const SIM_RATE: f32 = 800.0;
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
@@ -51,6 +51,7 @@ fn main() {
         let mut last_second = last_iter;
         let mut count = 0;
         loop {
+            let state = state.read().unwrap();
             let pressed = state.mouse_pressed.load(Ordering::Relaxed);
             let input = match pressed {
                 0b00 => None,
@@ -409,16 +410,10 @@ impl State {
         }
         compute_pass.set_pipeline(&self.simulate_pipeline.pipeline);
         compute_pass.set_bind_group(0, self.simulate_pipeline.bind_group.as_ref().unwrap(), &[]);
-        for row in 0..(self.size.height - 1) {
-            let mut imm: [u8; 8] = array::from_fn(|i| if i < 4 { row.to_le_bytes()[i] } else { 0 });
-            compute_pass.set_immediates(0, &imm);
-            compute_pass.dispatch_workgroups(self.size.width.div_ceil(64), 1, 1);
-            imm[4] = 1;
-            compute_pass.set_immediates(0, &imm);
-            compute_pass.dispatch_workgroups(self.size.width.div_ceil(64), 1, 1);
-        }
+        compute_pass.dispatch_workgroups(self.size.width.div_ceil(64), self.size.height - 1, 1);
 
         drop(compute_pass);
+
         encoder.copy_buffer_to_buffer(
             &self.snad_buffers[1],
             0,
@@ -534,8 +529,8 @@ struct UiState {
 }
 
 struct App {
-    state: Option<Arc<UiState>>,
-    send_state: Sender<Arc<UiState>>,
+    state: Option<Arc<RwLock<UiState>>>,
+    send_state: Sender<Arc<RwLock<UiState>>>,
     real_size: PhysicalSize<u32>,
 }
 
@@ -547,24 +542,25 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
         let state = pollster::block_on(State::new(Arc::clone(&window)));
-        let state = Arc::new(UiState {
+        self.real_size = state.size;
+        let state = Arc::new(RwLock::new(UiState {
             state,
             mouse_pressed: AtomicU8::new(0),
             mouse_pos: AtomicU64::new(0),
-        });
+        }));
         self.send_state.send(Arc::clone(&state)).unwrap();
-        self.real_size = state.state.size;
         self.state = Some(state);
 
         window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let lock = self.state.as_ref().unwrap().read().unwrap();
         let UiState {
             state,
             mouse_pressed,
             mouse_pos,
-        } = &**self.state.as_ref().unwrap();
+        } = &*lock;
         match event {
             WindowEvent::CloseRequested => {
                 println!("Close requested, stopping");
@@ -580,7 +576,9 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Resized(size) => {
                 self.real_size = size;
-                // state.resize(size);
+                drop(lock);
+                let mut lock = self.state.as_ref().unwrap().write().unwrap();
+                lock.state.resize(size);
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 let curr_val = mouse_pressed.load(Ordering::Relaxed);
