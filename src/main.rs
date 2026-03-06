@@ -83,7 +83,8 @@ fn main() {
 
             count += 1;
             if last_second.elapsed() > Duration::from_secs(1) {
-                eprintln!("{count}");
+                eprint!("\r{count}");
+                std::io::Write::flush(&mut std::io::stderr()).unwrap();
                 count = 0;
                 last_second = last_iter;
             }
@@ -258,7 +259,7 @@ impl State {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Simulate compute pipeline layout"),
                 bind_group_layouts: &[&simulate_bind_group_layout],
-                immediate_size: 8,
+                immediate_size: 0,
             });
         let simulate_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute simulate pipeline"),

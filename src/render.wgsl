@@ -41,13 +41,10 @@ fn fs_main(in: FSIn) -> @location(0) vec4<f32> {
     let index = coords.y * uniforms.width + coords.x;
     let grain = snad[index];
     if grain == 0 {
-        return vec4f(1.0, 1.0, 0.0, 0.0);
-    } else if grain == 1 {
-        return vec4f(0.0, 0.0, 1.0, 0.0);
-    } else if grain == 2 {
-        return vec4f(0.0, 0.0, 0.0, 0.0);
+        return vec4f(0.2, 0.2, 0.1, 0.0) / 5.0;
     } else {
-        return vec4f(1.0, 0.0, 0.0, 0.0);
+        let lerp = log2(f32(grain)) / 32.0;
+        return vec4f(1.0 - lerp * 2, lerp / 2, lerp * 2, 0.0);
     }
 }
 

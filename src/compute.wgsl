@@ -31,13 +31,6 @@ fn offset_index_unchecked(x: u32, y: u32, offset_x: i32, offset_y: i32) -> u32 {
     return new_index;
 }
 
-struct SimImmediate {
-    row: u32,
-    flag: u32,
-}
-
-var<immediate> sim: SimImmediate;
-
 @compute @workgroup_size(64)
 fn simulate(@builtin(global_invocation_id) id: vec3<u32>) {
     let x = id.x;
@@ -49,49 +42,50 @@ fn simulate(@builtin(global_invocation_id) id: vec3<u32>) {
     let s = swap_lr;
     let curr = offset_index_unchecked(x, y, 0, 0); 
     if snad_mut[curr] == 0 {
-        snad_next[curr] = snad_mut[curr];
+        snad_next[curr] = 0;
         return;
     }
+    let val = snad_mut[curr] + 1;
     let down = offset_index(x, y, 0, -1);
     if down == u32(-1i) {
-        snad_next[curr] = snad_mut[curr];
+        snad_next[curr] = val;
         return;
     }
     if snad_mut[down] == 0 {
-        snad_next[down] = snad_mut[curr];
+        snad_next[down] = val;
         snad_next[curr] = 0;
         return;
     }
     let left = offset_index(x, y, -1*s, 0);
     let down_left = offset_index_unchecked(x, y, -1*s, -1);
     if left != u32(-1i) && snad_mut[left] == 0 && snad_mut[down_left] == 0 {
-        snad_next[down_left] = snad_mut[curr];
+        snad_next[down_left] = val;
         snad_next[curr] = 0;
         return;
     }
     let right = offset_index(x, y, 1*s, 0);
     if right == u32(-1i) {
-        snad_next[curr] = snad_mut[curr];
+        snad_next[curr] = val;
         return;
     }
     let down_right = offset_index_unchecked(x, y, 1*s, -1);
     let two_right = offset_index(x, y, 2*s, 0);
     if two_right == u32(-1i) {
         if snad_mut[right] == 0 && snad_mut[down_right] == 0 {
-            snad_next[down_right] = snad_mut[curr];
+            snad_next[down_right] = val;
             snad_next[curr] = 0;
             return;
         }
-        snad_next[curr] = snad_mut[curr];
+        snad_next[curr] = val;
         return;
     } else {
         let down_right_two = offset_index_unchecked(x, y, 2*s, -1);
         if snad_mut[right] == 0 && snad_mut[down_right] == 0 && (snad_mut[two_right] == 0 || snad_mut[down_right_two] == 0) {
-            snad_next[down_right] = snad_mut[curr];
+            snad_next[down_right] = val;
             snad_next[curr] = 0;
             return;
         }
-        snad_next[curr] = snad_mut[curr];
+        snad_next[curr] = val;
         return;
     }
 }
@@ -114,7 +108,7 @@ fn input(@builtin(global_invocation_id) id: vec3<u32>) {
         if imm.size < 0 {
             snad_mut[index] = 0;
         } else {
-            snad_mut[index] = u32(-1i);
+            snad_mut[index] = 1;
         }
     }
 }
