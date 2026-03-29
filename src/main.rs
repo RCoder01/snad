@@ -3,7 +3,7 @@ use std::{
     borrow::Cow,
     sync::{
         Arc, RwLock,
-        atomic::{AtomicU8, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
         mpsc::{Sender, channel},
     },
     time::{Duration, Instant},
@@ -44,13 +44,14 @@ fn main() {
         send_state: tx,
         real_size: PhysicalSize::new(0, 0),
     };
-    std::thread::spawn(move || {
+    static STOP: AtomicBool = AtomicBool::new(false);
+    let sim_thread = std::thread::spawn(move || {
         let state = rx.recv().unwrap();
         let delay_interval = Duration::from_secs_f32(1. / SIM_RATE);
         let mut last_iter = Instant::now();
         let mut last_second = last_iter;
         let mut count = 0;
-        loop {
+        while !STOP.load(Ordering::Relaxed) {
             let state = state.read().unwrap();
             let pressed = state.mouse_pressed.load(Ordering::Relaxed);
             let input = match pressed {
@@ -93,6 +94,8 @@ fn main() {
         }
     });
     event_loop.run_app(&mut app).unwrap();
+    STOP.store(true, Ordering::Relaxed);
+    let _ = sim_thread.join();
 }
 
 macro_rules! pipeline {
