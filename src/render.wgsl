@@ -37,8 +37,9 @@ struct FSIn {
 
 @fragment
 fn fs_main(in: FSIn) -> @location(0) vec4<f32> {
-    let coords = vec2(u32(in.coord.x), u32(in.coord.y));
-    let index = coords.y * uniforms.width + coords.x;
+    let x = u32(in.coord.x);
+    let y = u32(in.coord.y);
+    let index = y * uniforms.width + x;
     let grain = snad[index];
     if grain == 0 {
         return vec4f(0.2, 0.2, 0.1, 0.0) / 5.0;
